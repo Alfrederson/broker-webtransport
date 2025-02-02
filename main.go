@@ -17,10 +17,11 @@ const (
 
 var wtConfig = webtransport.Server{
 	H3: http3.Server{
-		Addr:      "3122",
+		Addr:      ":3122",
 		TLSConfig: generateTLSConfig(),
 	},
 	CheckOrigin: func(r *http.Request) bool {
+		log.Println("checando origem ", r.Header["Origin"])
 		return true
 	},
 }
