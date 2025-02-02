@@ -82,7 +82,7 @@ func generateTLSConfig() *tls.Config {
 	}
 }
 
-func main() {
+func main2() {
 	go serveFrontend()
 	go broadcaster()
 	serveWebtransport()
@@ -167,4 +167,28 @@ func serveWebtransport() {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func main() {
+	s := webtransport.Server{
+		H3: http3.Server{
+			Addr:      "443",
+			TLSConfig: generateTLSConfig(),
+		},
+	}
+
+	http.HandleFunc("/wt", func(w http.ResponseWriter, r *http.Request) {
+		log.Println("opa!")
+
+		_, err := s.Upgrade(w, r)
+		if err != nil {
+			log.Printf("upgrade falhou %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		log.Println("conexão ok!")
+	})
+
+	s.ListenAndServeTLS(certFile, keyFile)
 }
