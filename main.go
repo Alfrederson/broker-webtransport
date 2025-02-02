@@ -72,7 +72,7 @@ const certFile = "/etc/letsencrypt/live/broker.r718.org/fullchain.pem" // Replac
 const keyFile = "/etc/letsencrypt/live/broker.r718.org/privkey.pem"    // Replace with the path to your key file
 
 func generateTLSConfig() *tls.Config {
-	cert, err := tls.LoadX509KeyPair("cert.pem", "key.pem")
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
 		log.Fatal(err)
 	}
