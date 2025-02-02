@@ -172,7 +172,7 @@ func serveWebtransport() {
 func main() {
 	s := webtransport.Server{
 		H3: http3.Server{
-			Addr:      "443",
+			Addr:      ":443",
 			TLSConfig: generateTLSConfig(),
 		},
 	}
