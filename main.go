@@ -1,10 +1,16 @@
 package main
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
 	"io"
 	"log"
+	"math/big"
 	"net/http"
+	"time"
 
 	"github.com/quic-go/quic-go/http3"
 	"github.com/quic-go/webtransport-go"
@@ -31,11 +37,45 @@ var (
 	clients = make(map[chan<- []byte]bool)
 )
 
-func generateTLSConfig() *tls.Config {
-	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+func generateCertificate(subject []string) (tls.Certificate, error) {
+	var certificate tls.Certificate
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		log.Fatal(err)
+		return certificate, err
 	}
+	serialNumber, err := rand.Int(rand.Reader, big.NewInt(0x7FFFFFFF))
+	if err != nil {
+		return certificate, err
+	}
+	var certTemplate = x509.Certificate{
+		SignatureAlgorithm: x509.ECDSAWithSHA256,
+		PublicKeyAlgorithm: x509.ECDSA,
+		NotAfter:           time.Now().Add(24 * time.Hour),
+		DNSNames:           subject,
+		SerialNumber:       serialNumber,
+	}
+	rawCertificate, err := x509.CreateCertificate(rand.Reader, &certTemplate, &certTemplate, &privateKey.PublicKey, privateKey)
+	if err != nil {
+		return certificate, err
+	}
+	// cert, err := x509.ParseCertificate(rawCertificate)
+	// log.Println(base64.StdEncoding.EncodeToString(cert.Signature))
+	return tls.Certificate{
+		Certificate:                  [][]byte{rawCertificate},
+		PrivateKey:                   privateKey,
+		SupportedSignatureAlgorithms: []tls.SignatureScheme{tls.ECDSAWithP256AndSHA256},
+	}, nil
+}
+
+func generateTLSConfig() *tls.Config {
+	cert, err := generateCertificate([]string{"broker.r718.org"})
+	if err != nil {
+		panic(err)
+	}
+	// cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 	return &tls.Config{
 		Certificates: []tls.Certificate{cert},
 		NextProtos:   []string{"h3"},
