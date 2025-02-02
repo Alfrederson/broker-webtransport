@@ -1,75 +1,34 @@
 package main
 
 import (
-	"context"
 	"crypto/tls"
-	"fmt"
+	"io"
 	"log"
 	"net/http"
-	"sync"
 
 	"github.com/quic-go/quic-go/http3"
 	"github.com/quic-go/webtransport-go"
 )
 
-type Client struct {
+const (
+	certFile = "/etc/letsencrypt/live/broker.r718.org/fullchain.pem" // Replace with the path to your certificate file
+	keyFile  = "/etc/letsencrypt/live/broker.r718.org/privkey.pem"   // Replace with the path to your key file
+)
+
+var wtConfig = webtransport.Server{
+	H3: http3.Server{
+		Addr:      "3122",
+		TLSConfig: generateTLSConfig(),
+	},
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
 }
 
-type Server struct {
-	clients map[*webtransport.Session]Client
-	mutex   sync.Mutex
-}
-
-func (s *Server) handleSession(sess *webtransport.Session) {
-	defer func() {
-		s.mutex.Lock()
-		delete(s.clients, sess)
-		s.mutex.Unlock()
-		sess.CloseWithError(1234, "sai.")
-	}()
-
-	for {
-		stream, err := sess.AcceptStream(context.Background())
-		if err != nil {
-			log.Println("ERRO: sess.AcceptStream: ", err)
-			return
-		}
-		go s.handleStream(stream, sess)
-	}
-}
-
-func (s *Server) handleStream(stream webtransport.Stream, sess *webtransport.Session) {
-	buf := make([]byte, 1024)
-	for {
-		n, err := stream.Read(buf)
-		if err != nil {
-			log.Println("ERRO: stream.Read: ", err)
-			return
-		}
-		msg := buf[:n]
-		fmt.Println("< ", msg)
-		s.broadcast(msg, sess)
-	}
-}
-
-func (s *Server) broadcast(msg []byte, sender *webtransport.Session) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	for client := range s.clients {
-		if client != sender {
-			stream, err := client.OpenStreamSync(context.Background())
-			if err != nil {
-				log.Println("ERRO: client.OpenStreamSync ", err)
-				continue
-			}
-			stream.Write(msg)
-			stream.Close()
-		}
-	}
-}
-
-const certFile = "/etc/letsencrypt/live/broker.r718.org/fullchain.pem" // Replace with the path to your certificate file
-const keyFile = "/etc/letsencrypt/live/broker.r718.org/privkey.pem"    // Replace with the path to your key file
+var (
+	public  = make(chan []byte)
+	clients = make(map[chan<- []byte]bool)
+)
 
 func generateTLSConfig() *tls.Config {
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
@@ -82,39 +41,87 @@ func generateTLSConfig() *tls.Config {
 	}
 }
 
-func helloHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "aoo, desgraça!")
+func main() {
+	go serveFrontend()
+	go broadcaster()
+	serveWebtransport()
 }
 
-func main() {
-
-	server := &Server{
-		clients: make(map[*webtransport.Session]Client),
-	}
-
-	wt_server := webtransport.Server{
-		CheckOrigin: func(r *http.Request) bool {
-			return true
-		},
-		H3: http3.Server{
-			Addr:      ":443",
-			TLSConfig: generateTLSConfig(),
-		},
-	}
-
-	http.HandleFunc("/", helloHandler)
-	http.HandleFunc("/wt", func(w http.ResponseWriter, r *http.Request) {
-		log.Println("recebi pedido")
-		sess, err := wt_server.Upgrade(w, r)
-		if err != nil {
-			log.Printf("ERRO: wt_server.Upgrade: ", err)
-			w.WriteHeader(500)
-			return
+func broadcaster() {
+	for message := range public {
+		for client := range clients {
+			client <- message
 		}
-		server.handleSession(sess)
-	})
+	}
+}
 
-	log.Println("inicializando...")
-	// log.Fatal(wt_server.ListenAndServe())
-	log.Fatal(wt_server.ListenAndServeTLS(certFile, keyFile))
+func sendMessages(stream webtransport.Stream, outgoing <-chan []byte) {
+	for message := range outgoing {
+		stream.Write(message)
+	}
+}
+
+func readMessages(stream webtransport.Stream, public chan<- []byte, name string) error {
+	message := make([]byte, 80)
+	for {
+		n, err := stream.Read(message)
+		if err != nil && err != io.EOF {
+			return err
+		}
+		log.Println("recebi %d bytes do stream %s", n, stream.StreamID())
+		public <- message
+		if err != io.EOF {
+			return err
+		}
+	}
+}
+
+func handleWTConn(w http.ResponseWriter, r *http.Request) {
+	session, err := wtConfig.Upgrade(w, r)
+	if err != nil {
+		log.Println("ERRO: wtConfig.Upgrade: ", err)
+		return
+	}
+	log.Printf("sessão aberta para %s\n", session.RemoteAddr())
+
+	stream, err := session.OpenStream()
+	if err != nil {
+		log.Println("ERRO: session.OpensTream: ", err)
+		return
+	}
+	log.Printf("stream aberta %s\n", stream.StreamID())
+
+	outgoing := make(chan []byte)
+	go sendMessages(stream, outgoing)
+
+	outgoing <- []byte("bem vindo")
+	clients[outgoing] = true
+	err = readMessages(stream, public, session.RemoteAddr().String())
+	if err != nil {
+		delete(clients, outgoing)
+		close(outgoing)
+		stream.CancelWrite(0)
+		log.Printf("stream %s fechada porque %v", stream.StreamID(), err)
+	}
+}
+
+func serveFrontend() {
+	log.Println("iniciando um servidor web...")
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("hello world!"))
+	})
+	http.HandleFunc("/wt", handleWTConn)
+
+	err := http.ListenAndServeTLS(":443", certFile, keyFile, nil)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func serveWebtransport() {
+	log.Println("iniciando o webtransport...")
+	err := wtConfig.ListenAndServeTLS(certFile, keyFile)
+	if err != nil {
+		panic(err)
+	}
 }
