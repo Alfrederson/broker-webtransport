@@ -190,5 +190,8 @@ func main() {
 		log.Println("conexão ok!")
 	})
 
-	s.ListenAndServeTLS(certFile, keyFile)
+	err := s.ListenAndServeTLS(certFile, keyFile)
+	if err != nil {
+		panic(err)
+	}
 }
