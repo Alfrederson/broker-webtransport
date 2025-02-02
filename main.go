@@ -161,7 +161,7 @@ func serveFrontend() {
 
 func serveWebtransport() {
 	log.Println("iniciando o webtransport...")
-	err := wtConfig.ListenAndServeTLS(certFile, keyFile)
+	err := wtConfig.ListenAndServe()
 	if err != nil {
 		panic(err)
 	}
