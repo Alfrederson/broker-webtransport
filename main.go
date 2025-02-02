@@ -89,8 +89,8 @@ func main() {
 	http.HandleFunc("/", helloHandler)
 
 	// Path to the certificate and private key
-	certFile := "server.crt" // Replace with the path to your certificate file
-	keyFile := "server.key"  // Replace with the path to your key file
+	certFile := "/etc/letsencrypt/live/broker.r718.org/fullchain.pem" // Replace with the path to your certificate file
+	keyFile := "/etc/letsencrypt/live/broker.r718.org/privkey.pem"    // Replace with the path to your key file
 
 	// Start the server on port 443 (default HTTPS port)
 	fmt.Println("Server is running on https://localhost:443")
