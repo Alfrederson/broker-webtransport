@@ -118,6 +118,8 @@ func readMessages(stream webtransport.Stream, public chan<- []byte, name string)
 }
 
 func handleWTConn(w http.ResponseWriter, r *http.Request) {
+	log.Println("pedido recebido")
+	log.Println("tentando fazer upgrade")
 	session, err := wtConfig.Upgrade(w, r)
 	if err != nil {
 		log.Println("ERRO: wtConfig.Upgrade: ", err)
