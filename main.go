@@ -94,7 +94,7 @@ func main() {
 
 	wt_server := webtransport.Server{
 		H3: http3.Server{
-			Addr:      "broker.r718.org:443",
+			Addr:      ":443",
 			TLSConfig: generateTLSConfig(),
 		},
 	}
