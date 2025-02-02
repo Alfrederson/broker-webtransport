@@ -68,6 +68,9 @@ func (s *Server) broadcast(msg []byte, sender *webtransport.Session) {
 	}
 }
 
+const certFile = "/etc/letsencrypt/live/broker.r718.org/fullchain.pem" // Replace with the path to your certificate file
+const keyFile = "/etc/letsencrypt/live/broker.r718.org/privkey.pem"    // Replace with the path to your key file
+
 func generateTLSConfig() *tls.Config {
 	cert, err := tls.LoadX509KeyPair("cert.pem", "key.pem")
 	if err != nil {
@@ -80,28 +83,10 @@ func generateTLSConfig() *tls.Config {
 }
 
 func helloHandler(w http.ResponseWriter, r *http.Request) {
-	// Respond with "Hello, World!" message
 	fmt.Fprintf(w, "Hello, World!")
 }
 
 func main() {
-	// Handle requests to the "/" route
-	http.HandleFunc("/", helloHandler)
-
-	// Path to the certificate and private key
-	certFile := "/etc/letsencrypt/live/broker.r718.org/fullchain.pem" // Replace with the path to your certificate file
-	keyFile := "/etc/letsencrypt/live/broker.r718.org/privkey.pem"    // Replace with the path to your key file
-
-	// Start the server on port 443 (default HTTPS port)
-	fmt.Println("Server is running on https://localhost:443")
-	if err := http.ListenAndServeTLS(":443", certFile, keyFile, nil); err != nil {
-		fmt.Println("Error starting server:", err)
-	}
-}
-
-func main2() {
-
-	// gerarCertificados("./cert.pem", "./key.pem")
 
 	server := &Server{
 		clients: make(map[*webtransport.Session]Client),
@@ -113,10 +98,7 @@ func main2() {
 			TLSConfig: generateTLSConfig(),
 		},
 	}
-
-	http.HandleFunc("/index", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("hello world"))
-	})
+	http.HandleFunc("/", helloHandler)
 
 	http.HandleFunc("/wt", func(w http.ResponseWriter, r *http.Request) {
 		log.Println("recebi pedido")
@@ -132,5 +114,5 @@ func main2() {
 
 	log.Println("inicializando...")
 	// log.Fatal(wt_server.ListenAndServe())
-	log.Fatal(wt_server.ListenAndServeTLS("./cert.pem", "./key.pem"))
+	log.Fatal(wt_server.ListenAndServeTLS(certFile, keyFile))
 }
