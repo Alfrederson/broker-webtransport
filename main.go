@@ -79,7 +79,23 @@ func generateTLSConfig() *tls.Config {
 	}
 }
 
+func helloHandler(w http.ResponseWriter, r *http.Request) {
+	// Respond with "Hello, World!" message
+	fmt.Fprintf(w, "Hello, World!")
+}
+
 func main() {
+	// Handle requests to the "/" route
+	http.HandleFunc("/", helloHandler)
+
+	// Start the server on port 8080
+	fmt.Println("Server is running on http://localhost:80")
+	if err := http.ListenAndServe(":80", nil); err != nil {
+		fmt.Println("Error starting server:", err)
+	}
+}
+
+func main2() {
 
 	// gerarCertificados("./cert.pem", "./key.pem")
 
@@ -93,6 +109,10 @@ func main() {
 			TLSConfig: generateTLSConfig(),
 		},
 	}
+
+	http.HandleFunc("/index", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("hello world"))
+	})
 
 	http.HandleFunc("/wt", func(w http.ResponseWriter, r *http.Request) {
 		log.Println("recebi pedido")
