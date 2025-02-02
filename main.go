@@ -93,13 +93,16 @@ func main() {
 	}
 
 	wt_server := webtransport.Server{
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
 		H3: http3.Server{
 			Addr:      ":443",
 			TLSConfig: generateTLSConfig(),
 		},
 	}
-	http.HandleFunc("/", helloHandler)
 
+	http.HandleFunc("/", helloHandler)
 	http.HandleFunc("/wt", func(w http.ResponseWriter, r *http.Request) {
 		log.Println("recebi pedido")
 		sess, err := wt_server.Upgrade(w, r)
@@ -108,7 +111,6 @@ func main() {
 			w.WriteHeader(500)
 			return
 		}
-
 		server.handleSession(sess)
 	})
 
