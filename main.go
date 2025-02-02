@@ -88,9 +88,13 @@ func main() {
 	// Handle requests to the "/" route
 	http.HandleFunc("/", helloHandler)
 
-	// Start the server on port 8080
-	fmt.Println("Server is running on http://localhost:80")
-	if err := http.ListenAndServe(":80", nil); err != nil {
+	// Path to the certificate and private key
+	certFile := "server.crt" // Replace with the path to your certificate file
+	keyFile := "server.key"  // Replace with the path to your key file
+
+	// Start the server on port 443 (default HTTPS port)
+	fmt.Println("Server is running on https://localhost:443")
+	if err := http.ListenAndServeTLS(":443", certFile, keyFile, nil); err != nil {
 		fmt.Println("Error starting server:", err)
 	}
 }
